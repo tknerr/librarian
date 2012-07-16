@@ -146,6 +146,49 @@ module Librarian
           "#{uri}/cookbooks/#{dependency.name}"
         end
 
+		##
+		# Returns an HTTP proxy URI if one is set in the environment variables.
+		#
+		def get_proxy_from_env
+			env_proxy = ENV['http_proxy'] || ENV['HTTP_PROXY']
+
+			return nil if env_proxy.nil? or env_proxy.empty?
+
+			uri = URI.parse(normalize_uri(env_proxy))
+
+			if uri and uri.user.nil? and uri.password.nil? then
+				# Probably we have http_proxy_* variables?
+				uri.user = ENV['http_proxy_user'] || ENV['HTTP_PROXY_USER']
+				uri.password = ENV['http_proxy_pass'] || ENV['HTTP_PROXY_PASS']
+			end
+
+			uri
+		end
+
+		##
+		# Normalize the URI by adding "http://" if it is missing.
+		#
+		def normalize_uri(uri)
+			(uri =~ /^(https?|ftp|file):/) ? uri : "http://#{uri}"
+		end
+		
+		## 
+		# proxy-aware http get
+		#
+		def http_get(uri)
+			proxy = get_proxy_from_env
+			if (proxy)
+				http = Net::HTTP.new(uri.host, uri.port, 
+					proxy.host, proxy.port, proxy.user, proxy.password)
+			else
+				http = Net::HTTP.new(uri.host, uri.port)			
+			end
+			request = Net::HTTP::Get.new(uri.path)
+			response = http.start{|http| http.request(request)}
+
+			response
+		end
+		
         def cache_metadata!(dependency)
           dependency_cache_path = cache_path.join(dependency.name)
           dependency_cache_path.mkpath
@@ -154,9 +197,8 @@ module Librarian
           caching_metadata(dependency.name) do
             dep_uri = URI.parse(dependency_uri(dependency))
             debug { "Caching #{dep_uri}" }
-            http = Net::HTTP.new(dep_uri.host, dep_uri.port)
-            request = Net::HTTP::Get.new(dep_uri.path)
-            response = http.start{|http| http.request(request)}
+
+            response = http_get(dep_uri)
             unless Net::HTTPSuccess === response
               raise Error, "Could not cache #{dependency} from #{dep_uri} because #{response.code} #{response.message}!"
             end
@@ -178,7 +220,7 @@ module Librarian
           unless version_cache_path.exist?
             version_cache_path.mkpath
             debug { "Caching #{version_uri}" }
-            version_metadata_blob = Net::HTTP.get(URI.parse(version_uri))
+            version_metadata_blob = http_get(URI.parse(version_uri)).body
             JSON.parse(version_metadata_blob) # check that it's JSON
             version_metadata_cache_path(dependency, version_uri).open('wb') do |f|
               f.write(version_metadata_blob)
@@ -190,7 +232,7 @@ module Librarian
           version_archive_cache_path = version_archive_cache_path(dependency, version_uri)
           unless version_archive_cache_path.exist?
             version_archive_cache_path.open('wb') do |f|
-              f.write(Net::HTTP.get(URI.parse(file_uri)))
+              f.write(http_get(URI.parse(file_uri)).body)
             end
           end
           version_package_cache_path = version_package_cache_path(dependency, version_uri)
