@@ -146,49 +146,49 @@ module Librarian
           "#{uri}/cookbooks/#{dependency.name}"
         end
 
-		##
-		# Returns an HTTP proxy URI if one is set in the environment variables.
-		#
-		def get_proxy_from_env
-			env_proxy = ENV['http_proxy'] || ENV['HTTP_PROXY']
+        ##
+        # Returns an HTTP proxy URI if one is set in the environment variables.
+        #
+        def get_proxy_from_env
+          env_proxy = ENV['http_proxy'] || ENV['HTTP_PROXY']
 
-			return nil if env_proxy.nil? or env_proxy.empty?
+          return nil if env_proxy.nil? or env_proxy.empty?
 
-			uri = URI.parse(normalize_uri(env_proxy))
+          uri = URI.parse(normalize_uri(env_proxy))
 
-			if uri and uri.user.nil? and uri.password.nil? then
-				# Probably we have http_proxy_* variables?
-				uri.user = ENV['http_proxy_user'] || ENV['HTTP_PROXY_USER']
-				uri.password = ENV['http_proxy_pass'] || ENV['HTTP_PROXY_PASS']
-			end
+          if uri and uri.user.nil? and uri.password.nil? then
+            # Probably we have http_proxy_* variables?
+            uri.user = ENV['http_proxy_user'] || ENV['HTTP_PROXY_USER']
+            uri.password = ENV['http_proxy_pass'] || ENV['HTTP_PROXY_PASS']
+          end
 
-			uri
-		end
+          uri
+        end
 
-		##
-		# Normalize the URI by adding "http://" if it is missing.
-		#
-		def normalize_uri(uri)
-			(uri =~ /^(https?|ftp|file):/) ? uri : "http://#{uri}"
-		end
-		
-		## 
-		# proxy-aware http get
-		#
-		def http_get(uri)
-			proxy = get_proxy_from_env
-			if (proxy)
-				http = Net::HTTP.new(uri.host, uri.port, 
-					proxy.host, proxy.port, proxy.user, proxy.password)
-			else
-				http = Net::HTTP.new(uri.host, uri.port)			
-			end
-			request = Net::HTTP::Get.new(uri.path)
-			response = http.start{|http| http.request(request)}
+        ##
+        # Normalize the URI by adding "http://" if it is missing.
+        #
+        def normalize_uri(uri)
+          (uri =~ /^(https?|ftp|file):/) ? uri : "http://#{uri}"
+        end
 
-			response
-		end
-		
+        ##
+        # proxy-aware http get
+        #
+        def http_get(uri)
+          proxy = get_proxy_from_env
+          if (proxy)
+            http = Net::HTTP.new(uri.host, uri.port,
+              proxy.host, proxy.port, proxy.user, proxy.password)
+          else
+            http = Net::HTTP.new(uri.host, uri.port)
+          end
+          request = Net::HTTP::Get.new(uri.path)
+          response = http.start{|http| http.request(request)}
+
+          response
+        end
+
         def cache_metadata!(dependency)
           dependency_cache_path = cache_path.join(dependency.name)
           dependency_cache_path.mkpath
